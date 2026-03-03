@@ -18,7 +18,7 @@ spec:
       serviceAccountName: charts-api
       containers:
         - name: charts-api
-          image: charts-api:latest
+          image: docker.artifactory.nsogroup.com/infra/charts-api:0.1.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
