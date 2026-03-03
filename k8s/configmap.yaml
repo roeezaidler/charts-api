@@ -4,5 +4,5 @@ metadata:
   name: charts-api-config
   namespace: user-charts
 data:
-  argocd-server-url: "https://user-charts-argo-cd-argocd-server.user-charts.svc.cluster.local"
+  argocd-server-url: "https://users-argocd.devops.nsogroup.com"
   artifactory-helm-repo-url: "https://artifactory.nsogroup.com/artifactory/devops-helm-release-local"

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     deployment_backend: Literal["argocd", "helm"] = "argocd"
 
     # ArgoCD
-    argocd_server_url: str = "https://user-charts-argocd.nsogroup.com"
+    argocd_server_url: str = "https://users-argocd.devops.nsogroup.com"
     argocd_auth_token: str = ""
     argocd_project: str = "default"
     argocd_namespace: str = "user-charts"  # namespace where ArgoCD + charts-api live
