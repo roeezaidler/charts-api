@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: charts-api-config
+  namespace: user-charts
 data:
-  argocd-server-url: "https://argocd-server.argocd.svc.cluster.local"
-  artifactory-helm-repo-url: "https://artifactory.internal/artifactory/api/helm/internal-helm"
+  argocd-server-url: "https://user-charts-argo-cd-argocd-server.user-charts.svc.cluster.local"
+  artifactory-helm-repo-url: "https://artifactory.nsogroup.com/artifactory/devops-helm-release-local"

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: charts-api
+  namespace: user-charts
   labels:
     app: charts-api
 spec:
@@ -26,6 +27,10 @@ spec:
               value: "true"
             - name: CHARTS_API_DEPLOYMENT_BACKEND
               value: "argocd"
+            - name: CHARTS_API_ARGOCD_NAMESPACE
+              value: "user-charts"
+            - name: CHARTS_API_CA_BUNDLE_PATH
+              value: "/etc/ssl/certs/internal-ca.crt"
             - name: CHARTS_API_ARGOCD_SERVER_URL
               valueFrom:
                 configMapKeyRef:
@@ -41,6 +46,11 @@ spec:
                 configMapKeyRef:
                   name: charts-api-config
                   key: artifactory-helm-repo-url
+          volumeMounts:
+            - name: internal-ca
+              mountPath: /etc/ssl/certs/internal-ca.crt
+              subPath: ca.crt
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /health
@@ -60,3 +70,7 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+      volumes:
+        - name: internal-ca
+          configMap:
+            name: charts-api-internal-ca

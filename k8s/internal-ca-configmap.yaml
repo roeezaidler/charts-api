@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: charts-api-internal-ca
+  namespace: user-charts
+data:
+  ca.crt: |
+    # Paste your internal CA certificate chain here
+    # This is the NSO-CASUB21 + CAROOT01 chain used by artifactory.nsogroup.com
+    -----BEGIN CERTIFICATE-----
+    REPLACE_WITH_YOUR_INTERNAL_CA_CERT
+    -----END CERTIFICATE-----

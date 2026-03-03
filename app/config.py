@@ -12,13 +12,19 @@ class Settings(BaseSettings):
     deployment_backend: Literal["argocd", "helm"] = "argocd"
 
     # ArgoCD
-    argocd_server_url: str = "https://argocd.internal"
+    argocd_server_url: str = "https://user-charts-argocd.nsogroup.com"
     argocd_auth_token: str = ""
     argocd_project: str = "default"
+    argocd_namespace: str = "user-charts"  # namespace where ArgoCD + charts-api live
     argocd_sync_timeout: int = 300  # seconds to wait for sync
 
-    # Artifactory (Helm chart source registered in ArgoCD)
-    artifactory_helm_repo_url: str = ""
+    # Internal TLS - path to CA bundle for verifying internal HTTPS (Artifactory, ArgoCD, etc.)
+    # Set to "" to skip verification (not recommended for production)
+    ca_bundle_path: str = "/etc/ssl/certs/internal-ca.crt"
+
+    # Artifactory Helm repo URL as registered in ArgoCD
+    # This is what goes into the ArgoCD Application source.repoURL
+    artifactory_helm_repo_url: str = "https://artifactory.nsogroup.com/artifactory/devops-helm-release-local"
 
     # Kubernetes
     k8s_in_cluster: bool = True

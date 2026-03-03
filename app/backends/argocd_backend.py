@@ -1,4 +1,6 @@
 import asyncio
+import ssl
+from pathlib import Path
 
 import httpx
 import structlog
@@ -10,13 +12,26 @@ from app.core.exceptions import ArgocdError
 logger = structlog.get_logger()
 
 
+def _build_ssl_context(ca_bundle_path: str) -> ssl.SSLContext | bool:
+    """Build SSL context with internal CA bundle, or disable verification if no path."""
+    if not ca_bundle_path:
+        return False  # skip verification
+    ca_path = Path(ca_bundle_path)
+    if not ca_path.exists():
+        logger.warning("ca_bundle_not_found", path=ca_bundle_path)
+        return False
+    ctx = ssl.create_default_context(cafile=str(ca_path))
+    return ctx
+
+
 class ArgoCDBackend(DeploymentBackend):
     def __init__(self, settings: Settings):
         self.settings = settings
+        ssl_ctx = _build_ssl_context(settings.ca_bundle_path)
         self.client = httpx.AsyncClient(
             base_url=settings.argocd_server_url,
             headers={"Authorization": f"Bearer {settings.argocd_auth_token}"},
-            verify=False,  # internal cluster communication
+            verify=ssl_ctx,
             timeout=60.0,
         )
 
@@ -35,7 +50,7 @@ class ArgoCDBackend(DeploymentBackend):
         application = {
             "metadata": {
                 "name": app_name,
-                "namespace": "argocd",
+                "namespace": self.settings.argocd_namespace,
                 "labels": labels,
                 "finalizers": ["resources-finalizer.argocd.argoproj.io"],
             },
@@ -50,6 +65,7 @@ class ArgoCDBackend(DeploymentBackend):
                     },
                 },
                 "destination": {
+                    # Local cluster - ArgoCD deploys to the same cluster it runs on
                     "server": "https://kubernetes.default.svc",
                     "namespace": namespace,
                 },
@@ -68,7 +84,7 @@ class ArgoCDBackend(DeploymentBackend):
             resp = await self.client.post("/api/v1/applications", json=application)
 
             if resp.status_code == 409:
-                # Application already exists - update it
+                # Application already exists - update it (idempotent re-deploy)
                 resp = await self.client.put(
                     f"/api/v1/applications/{app_name}",
                     json=application,

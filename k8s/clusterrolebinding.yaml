@@ -9,4 +9,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: charts-api
-    namespace: default  # Change to the namespace where charts-api is deployed
+    namespace: user-charts
