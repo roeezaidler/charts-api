@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: charts-api-config
+data:
+  argocd-server-url: "https://argocd-server.argocd.svc.cluster.local"
+  artifactory-helm-repo-url: "https://artifactory.internal/artifactory/api/helm/internal-helm"

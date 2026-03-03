@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: charts-api
+  labels:
+    app: charts-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: charts-api
+  template:
+    metadata:
+      labels:
+        app: charts-api
+    spec:
+      serviceAccountName: charts-api
+      containers:
+        - name: charts-api
+          image: charts-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CHARTS_API_K8S_IN_CLUSTER
+              value: "true"
+            - name: CHARTS_API_DEPLOYMENT_BACKEND
+              value: "argocd"
+            - name: CHARTS_API_ARGOCD_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: charts-api-config
+                  key: argocd-server-url
+            - name: CHARTS_API_ARGOCD_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: charts-api-secrets
+                  key: argocd-auth-token
+            - name: CHARTS_API_ARTIFACTORY_HELM_REPO_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: charts-api-config
+                  key: artifactory-helm-repo-url
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
