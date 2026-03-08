@@ -4,7 +4,6 @@ import structlog
 from fastapi import FastAPI
 
 from app.config import Settings
-from app.backends.argocd_backend import ArgoCDBackend
 from app.backends.helm_backend import HelmBackend
 from app.services.deployment_service import DeploymentService
 from app.services.kubernetes_service import KubernetesService
@@ -18,30 +17,24 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
 
-    # Initialize backend
-    if settings.deployment_backend == "argocd":
-        backend = ArgoCDBackend(settings)
-        logger.info("backend_initialized", type="argocd", server=settings.argocd_server_url)
-    else:
-        backend = HelmBackend(settings)
-        logger.info("backend_initialized", type="helm")
+    # Initialize Helm backend with Rancher impersonation support
+    helm = HelmBackend(settings)
+    logger.info("backend_initialized", type="helm")
 
-    # Initialize K8s service
+    # Initialize K8s service for service URL discovery
     k8s_service = KubernetesService(settings)
 
     # Wire up the deployment service
-    app.state.deployment_service = DeploymentService(backend, k8s_service, settings)
+    app.state.deployment_service = DeploymentService(helm, k8s_service, settings)
 
     # Start TTL cleanup scheduler
-    scheduler = start_scheduler(settings, backend)
+    scheduler = start_scheduler(settings, helm)
     logger.info("app_started")
 
     yield
 
     # Shutdown
     stop_scheduler(scheduler)
-    if hasattr(backend, "close"):
-        await backend.close()
     logger.info("app_stopped")
 
 
@@ -49,7 +42,7 @@ def create_app() -> FastAPI:
     settings = Settings()
     app = FastAPI(
         title="Charts API - Helm Deployment Server",
-        description="API for deploying MCP servers and agents to Kubernetes via ArgoCD",
+        description="API for deploying Helm charts to Kubernetes via Rancher with user impersonation",
         version="0.1.0",
         lifespan=lifespan,
     )

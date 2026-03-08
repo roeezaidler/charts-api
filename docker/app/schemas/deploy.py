@@ -12,14 +12,18 @@ class DeployRequest(BaseModel):
         description="DNS-compatible name for the entity",
     )
     entity_type: EntityType
-    chart_name: str = Field(..., min_length=1)
+    chart_name: str = Field(..., min_length=1, description="Helm chart name in Artifactory")
     chart_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+.*$")
     artifactory_path: str = Field(..., description="Docker image path in Artifactory")
-    owner_username: str = Field(..., min_length=1, max_length=63)
-    groups: list[str] = Field(default_factory=list)
+    owner_username: str = Field(..., min_length=1, max_length=63, description="Rancher username to impersonate")
+    groups: list[str] = Field(default_factory=list, description="Rancher groups for impersonation")
     target_environment: TargetEnvironment
     ttl_days: int = Field(default=7, ge=1, le=365)
     quota_profile: QuotaProfile = QuotaProfile.STANDARD
+    values_override: dict | None = Field(
+        default=None,
+        description="Optional Helm values to override chart defaults. Merged on top of quota profile values.",
+    )
 
 
 class DeployResponse(BaseModel):

@@ -4,5 +4,6 @@ metadata:
   name: charts-api-config
   namespace: user-charts
 data:
-  argocd-server-url: "https://users-argocd.devops.nsogroup.com"
+  rancher-url: "https://rancher.nsogroup.com"
+  rancher-cluster-id: "REPLACE_WITH_CLUSTER_ID"
   artifactory-helm-repo-url: "https://artifactory.nsogroup.com/artifactory/devops-helm-release-local"

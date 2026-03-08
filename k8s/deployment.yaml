@@ -25,27 +25,40 @@ spec:
           env:
             - name: CHARTS_API_K8S_IN_CLUSTER
               value: "true"
-            - name: CHARTS_API_DEPLOYMENT_BACKEND
-              value: "argocd"
-            - name: CHARTS_API_ARGOCD_NAMESPACE
-              value: "user-charts"
             - name: CHARTS_API_CA_BUNDLE_PATH
               value: "/etc/ssl/certs/internal-ca.crt"
-            - name: CHARTS_API_ARGOCD_SERVER_URL
+            - name: CHARTS_API_RANCHER_URL
               valueFrom:
                 configMapKeyRef:
                   name: charts-api-config
-                  key: argocd-server-url
-            - name: CHARTS_API_ARGOCD_AUTH_TOKEN
+                  key: rancher-url
+            - name: CHARTS_API_RANCHER_CLUSTER_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: charts-api-config
+                  key: rancher-cluster-id
+            - name: CHARTS_API_RANCHER_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: charts-api-secrets
-                  key: argocd-auth-token
+                  key: rancher-token
             - name: CHARTS_API_ARTIFACTORY_HELM_REPO_URL
               valueFrom:
                 configMapKeyRef:
                   name: charts-api-config
                   key: artifactory-helm-repo-url
+            - name: CHARTS_API_ARTIFACTORY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: charts-api-secrets
+                  key: artifactory-username
+                  optional: true
+            - name: CHARTS_API_ARTIFACTORY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: charts-api-secrets
+                  key: artifactory-password
+                  optional: true
           volumeMounts:
             - name: internal-ca
               mountPath: /etc/ssl/certs/internal-ca.crt

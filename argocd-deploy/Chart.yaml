@@ -1,9 +1,0 @@
-apiVersion: v2
-name: ai-portal-argocd
-description: ArgoCD instance for the AI Portal - manages MCP server and agent deployments
-version: 1.0.0
-type: application
-dependencies:
-  - name: argo-cd
-    version: 7.7.11
-    repository: "https://artifactory.nsogroup.com/artifactory/devops-helm-release-local"
