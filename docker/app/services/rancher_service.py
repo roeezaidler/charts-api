@@ -172,5 +172,32 @@ class RancherService:
         )
         return user_id, effective_groups, project_id
 
+    async def ensure_namespace(self, namespace: str, project_id: str | None = None) -> None:
+        """Create namespace via Rancher K8s API proxy (as admin) with project annotation."""
+        k8s_base = f"/k8s/clusters/{self.cluster_id}"
+
+        # Check if namespace already exists
+        resp = await self._client.get(f"{k8s_base}/api/v1/namespaces/{namespace}")
+        if resp.status_code == 200:
+            logger.info("namespace_exists", namespace=namespace)
+            return
+
+        # Build namespace manifest
+        ns_manifest = {
+            "apiVersion": "v1",
+            "kind": "Namespace",
+            "metadata": {
+                "name": namespace,
+                "annotations": {},
+            },
+        }
+        if project_id:
+            full_project_id = f"{self.cluster_id}:{project_id}"
+            ns_manifest["metadata"]["annotations"]["field.cattle.io/projectId"] = full_project_id
+
+        resp = await self._client.post(f"{k8s_base}/api/v1/namespaces", json=ns_manifest)
+        resp.raise_for_status()
+        logger.info("namespace_created", namespace=namespace, project_id=project_id)
+
     async def close(self):
         await self._client.aclose()

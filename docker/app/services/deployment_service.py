@@ -46,8 +46,8 @@ class DeploymentService:
             project_id=project_id,
         )
 
-        # Create namespace as admin (with project label) before Helm deploy
-        await self.k8s.ensure_namespace(namespace, project_id)
+        # Create namespace via Rancher API as admin (with project label)
+        await self.rancher.ensure_namespace(namespace, project_id)
 
         # Ensure Artifactory Helm repo is configured
         await self.helm.ensure_repo()
