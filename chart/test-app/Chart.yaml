@@ -1,0 +1,6 @@
+apiVersion: v2
+name: test-app
+description: Simple test chart with a Deployment and LoadBalancer Service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
