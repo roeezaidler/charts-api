@@ -7,3 +7,5 @@ data:
   rancher-url: "https://rancher.nsogroup.com"
   rancher-cluster-id: "REPLACE_WITH_CLUSTER_ID"
   artifactory-helm-repo-url: "https://artifactory.nsogroup.com/artifactory/devops-helm-release-local"
+  ldap-server: "REPLACE_WITH_LDAP_SERVER"
+  ldap-base-dn: "OU=NSOGROUP,DC=NSOGROUP,DC=COM"

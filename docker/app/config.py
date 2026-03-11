@@ -10,10 +10,9 @@ class Settings(BaseSettings):
     # Rancher - used to proxy K8s API with user impersonation
     rancher_url: str = ""  # e.g. https://rancher.nsogroup.com
     rancher_cluster_id: str = ""  # e.g. c-m-xxxxx
-    rancher_token: str = ""  # Service account token with impersonation rights
+    rancher_token: str = ""  # Admin token with impersonation rights
 
     # Internal TLS - path to CA bundle for verifying internal HTTPS
-    # Set to "" to skip verification
     ca_bundle_path: str = "/etc/ssl/certs/internal-ca.crt"
 
     # Artifactory Helm repo - added to helm via `helm repo add`
@@ -26,16 +25,15 @@ class Settings(BaseSettings):
     helm_binary: str = "helm"
     helm_timeout: int = 300
 
+    # LDAP - for resolving user AD group memberships
+    ldap_server: str = ""  # e.g. ldap://dc01.nsogroup.com
+    ldap_username: str = ""  # e.g. svc_charts_api (will be prefixed with nsogroup\\)
+    ldap_password: str = ""
+    ldap_base_dn: str = "OU=NSOGROUP,DC=NSOGROUP,DC=COM"
+
     # Kubernetes (for service URL discovery)
     k8s_in_cluster: bool = True
     k8s_kubeconfig: str = ""
-
-    # Defaults
-    default_service_type: str = "ClusterIP"
-    default_service_port: int = 8080
-
-    # TTL cleanup
-    ttl_check_interval_minutes: int = 60
 
     model_config = {"env_file": ".env", "env_prefix": "CHARTS_API_"}
 

@@ -50,11 +50,11 @@ async def list_deployments(
 async def delete_deployment(
     release_name: str,
     namespace: str = Query(..., description="Kubernetes namespace of the release"),
-    impersonate_user: str | None = Query(None, description="Rancher user to impersonate for RBAC"),
+    owner_username: str | None = Query(None, description="Rancher username to impersonate for RBAC"),
     service: DeploymentService = Depends(get_deployment_service),
 ):
     try:
-        await service.delete_release(release_name, namespace, impersonate_user)
+        await service.delete_release(release_name, namespace, owner_username)
         return DeleteResponse(status="success", message=f"Release {release_name} deleted")
     except DeploymentError as e:
         raise HTTPException(

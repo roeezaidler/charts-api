@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from app.schemas.common import EntityType, QuotaProfile, TargetEnvironment
+from app.schemas.common import EntityType, TargetEnvironment
 
 
 class DeployRequest(BaseModel):
@@ -16,13 +16,10 @@ class DeployRequest(BaseModel):
     chart_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+.*$")
     artifactory_path: str = Field(..., description="Docker image path in Artifactory")
     owner_username: str = Field(..., min_length=1, max_length=63, description="Rancher username to impersonate")
-    groups: list[str] = Field(default_factory=list, description="Rancher groups for impersonation")
     target_environment: TargetEnvironment
-    ttl_days: int = Field(default=7, ge=1, le=365)
-    quota_profile: QuotaProfile = QuotaProfile.STANDARD
     values_override: dict | None = Field(
         default=None,
-        description="Optional Helm values to override chart defaults. Merged on top of quota profile values.",
+        description="Optional Helm values to override chart defaults",
     )
 
 

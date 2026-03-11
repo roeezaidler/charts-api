@@ -1,24 +1,25 @@
 import uuid
-from datetime import datetime, timedelta, timezone
 
 import structlog
+import yaml
 
 from app.backends.helm_backend import HelmBackend
 from app.config import Settings
 from app.core.exceptions import DeploymentError
 from app.core.namespace import build_namespace, build_release_name
-from app.core.quota_profiles import build_values_overrides, values_to_yaml, deep_merge
 from app.schemas.deploy import DeployRequest, DeployResponse
 from app.schemas.status import DeploymentStatusResponse
 from app.services.kubernetes_service import KubernetesService
+from app.services.rancher_service import RancherService
 
 logger = structlog.get_logger()
 
 
 class DeploymentService:
-    def __init__(self, helm: HelmBackend, k8s_service: KubernetesService, settings: Settings):
+    def __init__(self, helm: HelmBackend, k8s_service: KubernetesService, rancher: RancherService, settings: Settings):
         self.helm = helm
         self.k8s = k8s_service
+        self.rancher = rancher
         self.settings = settings
 
     async def create_deployment(self, request: DeployRequest) -> DeployResponse:
@@ -26,24 +27,12 @@ class DeploymentService:
         namespace = build_namespace(request.entity_type.value, request.owner_username, request.target_environment.value)
         release_name = build_release_name(request.entity_name, request.target_environment.value)
 
-        # Build Helm values from quota profile
-        values = build_values_overrides(
-            entity_name=request.entity_name,
-            entity_type=request.entity_type.value,
-            artifactory_path=request.artifactory_path,
-            quota_profile=request.quota_profile.value,
-            target_environment=request.target_environment.value,
-            owner_username=request.owner_username,
-            groups=request.groups,
-            service_type=self.settings.default_service_type,
-            service_port=self.settings.default_service_port,
-        )
+        # Resolve username to Rancher user ID + AD groups for impersonation
+        user_id, groups = await self.rancher.resolve_user(request.owner_username)
+        logger.info("resolved_impersonation", username=request.owner_username, user_id=user_id, groups=groups)
 
-        # Merge user-provided values_override on top
-        if request.values_override:
-            values = deep_merge(values, request.values_override)
-
-        values_yaml = values_to_yaml(values)
+        # Build values YAML from override (or empty)
+        values_yaml = yaml.dump(request.values_override or {}, default_flow_style=False)
 
         chart_ref = f"{self.settings.artifactory_helm_repo_name}/{request.chart_name}"
 
@@ -53,21 +42,21 @@ class DeploymentService:
             release=release_name,
             namespace=namespace,
             chart=f"{request.chart_name}:{request.chart_version}",
-            impersonate_user=request.owner_username,
+            impersonate_user=user_id,
         )
 
         # Ensure Artifactory Helm repo is configured
         await self.helm.ensure_repo()
 
-        # Deploy via Helm with Rancher impersonation
+        # Deploy via Helm with Rancher impersonation (user ID + AD groups)
         result = await self.helm.deploy(
             release_name=release_name,
             chart_ref=chart_ref,
             chart_version=request.chart_version,
             namespace=namespace,
             values_yaml=values_yaml,
-            impersonate_user=request.owner_username,
-            impersonate_groups=request.groups or None,
+            impersonate_user=user_id,
+            impersonate_groups=groups or None,
         )
 
         if not result.success:
@@ -114,7 +103,12 @@ class DeploymentService:
     async def list_releases(self, namespace: str | None = None) -> list[dict]:
         return await self.helm.list_releases(namespace)
 
-    async def delete_release(self, release_name: str, namespace: str, impersonate_user: str | None = None, impersonate_groups: list[str] | None = None) -> None:
+    async def delete_release(self, release_name: str, namespace: str, owner_username: str | None = None) -> None:
+        impersonate_user = None
+        impersonate_groups = None
+        if owner_username:
+            impersonate_user, impersonate_groups = await self.rancher.resolve_user(owner_username)
+
         result = await self.helm.delete(release_name, namespace, impersonate_user, impersonate_groups)
         if not result.success:
             raise DeploymentError(release_name, result.error_message or "Failed to delete")

@@ -14,12 +14,6 @@ class TargetEnvironment(str, Enum):
     PROD = "prod"
 
 
-class QuotaProfile(str, Enum):
-    SMALL = "small"
-    STANDARD = "standard"
-    LARGE = "large"
-
-
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str

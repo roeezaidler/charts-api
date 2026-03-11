@@ -18,7 +18,7 @@ spec:
       serviceAccountName: charts-api
       containers:
         - name: charts-api
-          image: docker.artifactory.nsogroup.com/infra/charts-api:0.1.0
+          image: docker.artifactory.nsogroup.com/infra/charts-api:0.2.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -59,6 +59,26 @@ spec:
                   name: charts-api-secrets
                   key: artifactory-password
                   optional: true
+            - name: CHARTS_API_LDAP_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  name: charts-api-config
+                  key: ldap-server
+            - name: CHARTS_API_LDAP_BASE_DN
+              valueFrom:
+                configMapKeyRef:
+                  name: charts-api-config
+                  key: ldap-base-dn
+            - name: CHARTS_API_LDAP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: charts-api-secrets
+                  key: ldap-username
+            - name: CHARTS_API_LDAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: charts-api-secrets
+                  key: ldap-password
           volumeMounts:
             - name: internal-ca
               mountPath: /etc/ssl/certs/internal-ca.crt

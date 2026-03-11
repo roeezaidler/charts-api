@@ -7,7 +7,7 @@ from app.config import Settings
 from app.backends.helm_backend import HelmBackend
 from app.services.deployment_service import DeploymentService
 from app.services.kubernetes_service import KubernetesService
-from app.scheduler.ttl_scheduler import start_scheduler, stop_scheduler
+from app.services.rancher_service import RancherService
 from app.api.v1.router import api_router
 
 logger = structlog.get_logger()
@@ -17,24 +17,16 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
 
-    # Initialize Helm backend with Rancher impersonation support
     helm = HelmBackend(settings)
-    logger.info("backend_initialized", type="helm")
-
-    # Initialize K8s service for service URL discovery
     k8s_service = KubernetesService(settings)
+    rancher = RancherService(settings)
 
-    # Wire up the deployment service
-    app.state.deployment_service = DeploymentService(helm, k8s_service, settings)
-
-    # Start TTL cleanup scheduler
-    scheduler = start_scheduler(settings, helm)
+    app.state.deployment_service = DeploymentService(helm, k8s_service, rancher, settings)
     logger.info("app_started")
 
     yield
 
-    # Shutdown
-    stop_scheduler(scheduler)
+    await rancher.close()
     logger.info("app_stopped")
 
 
@@ -43,7 +35,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Charts API - Helm Deployment Server",
         description="API for deploying Helm charts to Kubernetes via Rancher with user impersonation",
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
