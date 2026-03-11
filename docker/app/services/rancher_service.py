@@ -72,13 +72,30 @@ class RancherService:
             conn.unbind()
 
     async def get_user_id(self, username: str) -> str:
-        """Resolve a Rancher username to its internal user ID (e.g. u-xxxxx)."""
+        """Resolve a Rancher username to its internal user ID (e.g. u-xxxxx).
+
+        Searches by username first, then falls back to searching by AD principal ID.
+        """
+        # Try by username field first (works for local users)
         resp = await self._client.get("/v3/users", params={"username": username})
         resp.raise_for_status()
         data = resp.json().get("data", [])
-        if not data:
-            raise ValueError(f"Rancher user not found: {username}")
-        return data[0]["id"]
+        if data:
+            return data[0]["id"]
+
+        # For AD users, search all users and match by principalIds containing the username
+        resp = await self._client.get("/v3/users")
+        resp.raise_for_status()
+        for user in resp.json().get("data", []):
+            principal_ids = user.get("principalIds", [])
+            for pid in principal_ids:
+                # AD principals look like: activedirectory_user://CN=Roei Zaidler,...
+                # or activedirectory_user://roeiz  — match sAMAccountName in the principal
+                if f"activedirectory_user://" in pid and username.lower() in pid.lower():
+                    logger.info("rancher_user_found_by_principal", username=username, user_id=user["id"], principal=pid)
+                    return user["id"]
+
+        raise ValueError(f"Rancher user not found: {username}")
 
     async def get_cluster_groups(self) -> set[str]:
         """Get all Kubernetes OU AD groups that have project bindings on this cluster."""
