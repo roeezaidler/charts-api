@@ -11,11 +11,43 @@ logger = structlog.get_logger()
 
 class KubernetesService:
     def __init__(self, settings: Settings):
+        self.settings = settings
         if settings.k8s_in_cluster:
             config.load_incluster_config()
         else:
             config.load_kube_config(config_file=settings.k8s_kubeconfig or None)
         self.core_v1 = client.CoreV1Api()
+
+    def _ensure_namespace(self, namespace: str, project_id: str | None = None) -> None:
+        """Create namespace if it doesn't exist, with Rancher project label."""
+        try:
+            self.core_v1.read_namespace(name=namespace)
+            logger.info("namespace_exists", namespace=namespace)
+            return
+        except ApiException as e:
+            if e.status != 404:
+                raise
+
+        # Build namespace with project annotation
+        labels = {}
+        annotations = {}
+        if project_id and self.settings.rancher_cluster_id:
+            full_project_id = f"{self.settings.rancher_cluster_id}:{project_id}"
+            annotations["field.cattle.io/projectId"] = full_project_id
+
+        ns = client.V1Namespace(
+            metadata=client.V1ObjectMeta(
+                name=namespace,
+                labels=labels,
+                annotations=annotations,
+            )
+        )
+        self.core_v1.create_namespace(body=ns)
+        logger.info("namespace_created", namespace=namespace, project_id=project_id)
+
+    async def ensure_namespace(self, namespace: str, project_id: str | None = None) -> None:
+        """Async wrapper for namespace creation."""
+        await asyncio.to_thread(self._ensure_namespace, namespace, project_id)
 
     def _get_service_urls(self, service_name: str, namespace: str) -> tuple[str, str | None]:
         """Query K8s API for a Service and return (internal_url, external_url)."""

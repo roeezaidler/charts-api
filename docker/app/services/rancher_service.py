@@ -114,13 +114,32 @@ class RancherService:
                 groups.add(gid)
         return groups
 
-    async def resolve_user(self, username: str) -> tuple[str, list[str]]:
-        """Resolve username to (rancher_user_id, ad_groups) for impersonation.
+    @staticmethod
+    def extract_project_id(group_principal: str) -> str | None:
+        """Extract Rancher project ID from an AD group principal.
+
+        Group principal format: activedirectory_group://CN=kubernetes-qa-androidiphone-group,OU=...
+        Group CN format: kubernetes-<project>-...
+        Returns: p-<project> (e.g. p-qa, p-android)
+        """
+        # Extract CN from the principal
+        prefix = "activedirectory_group://CN="
+        if not group_principal.startswith(prefix):
+            return None
+        cn = group_principal[len(prefix):].split(",")[0]  # e.g. kubernetes-qa-androidiphone-group
+        parts = cn.split("-")
+        if len(parts) >= 2 and parts[0] == "kubernetes":
+            return f"p-{parts[1]}"
+        return None
+
+    async def resolve_user(self, username: str) -> tuple[str, list[str], str | None]:
+        """Resolve username to (rancher_user_id, ad_groups, project_id) for impersonation.
 
         1. Get user's DN and AD groups from LDAP
         2. Get Rancher user ID by matching DN in principalIds
         3. Intersect AD groups with groups that have project bindings on this cluster
-        4. Return only the groups the user actually belongs to AND that have permissions
+        4. Extract project ID from effective groups
+        5. Return (user_id, effective_groups, project_id)
         """
         # Get user DN and groups from LDAP first (needed for Rancher lookup)
         user_dn, user_groups = await asyncio.to_thread(self._get_user_info_from_ldap, username)
@@ -134,6 +153,13 @@ class RancherService:
         # Intersect: only groups the user is in AND that have cluster/project bindings
         effective_groups = sorted(set(user_groups) & cluster_groups)
 
+        # Extract project ID from the first effective group
+        project_id = None
+        for group in effective_groups:
+            project_id = self.extract_project_id(group)
+            if project_id:
+                break
+
         logger.info(
             "resolved_user",
             username=username,
@@ -142,8 +168,9 @@ class RancherService:
             user_ad_groups=len(user_groups),
             cluster_groups=len(cluster_groups),
             effective_groups=effective_groups,
+            project_id=project_id,
         )
-        return user_id, effective_groups
+        return user_id, effective_groups, project_id
 
     async def close(self):
         await self._client.aclose()

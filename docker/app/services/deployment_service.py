@@ -27,9 +27,9 @@ class DeploymentService:
         namespace = build_namespace(request.entity_type.value, request.owner_username, request.target_environment.value)
         release_name = build_release_name(request.entity_name, request.target_environment.value)
 
-        # Resolve username to Rancher user ID + AD groups for impersonation
-        user_id, groups = await self.rancher.resolve_user(request.owner_username)
-        logger.info("resolved_impersonation", username=request.owner_username, user_id=user_id, groups=groups)
+        # Resolve username to Rancher user ID + AD groups + project ID
+        user_id, groups, project_id = await self.rancher.resolve_user(request.owner_username)
+        logger.info("resolved_impersonation", username=request.owner_username, user_id=user_id, groups=groups, project_id=project_id)
 
         # Build values YAML from override (or empty)
         values_yaml = yaml.dump(request.values_override or {}, default_flow_style=False)
@@ -43,7 +43,11 @@ class DeploymentService:
             namespace=namespace,
             chart=f"{request.chart_name}:{request.chart_version}",
             impersonate_user=user_id,
+            project_id=project_id,
         )
+
+        # Create namespace as admin (with project label) before Helm deploy
+        await self.k8s.ensure_namespace(namespace, project_id)
 
         # Ensure Artifactory Helm repo is configured
         await self.helm.ensure_repo()
@@ -107,7 +111,7 @@ class DeploymentService:
         impersonate_user = None
         impersonate_groups = None
         if owner_username:
-            impersonate_user, impersonate_groups = await self.rancher.resolve_user(owner_username)
+            impersonate_user, impersonate_groups, _ = await self.rancher.resolve_user(owner_username)
 
         result = await self.helm.delete(release_name, namespace, impersonate_user, impersonate_groups)
         if not result.success:

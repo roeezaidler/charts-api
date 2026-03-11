@@ -92,7 +92,6 @@ class HelmBackend:
                 chart_ref,
                 "--version", chart_version,
                 "--namespace", namespace,
-                "--create-namespace",
                 "--values", str(values_file),
                 "--timeout", f"{self.timeout}s",
                 "--wait",
