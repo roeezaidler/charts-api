@@ -3,6 +3,7 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}
   labels:
+    network-pool: {{ .Values.networkPool }}
     app: {{ .Release.Name }}
 spec:
   type: {{ .Values.service.type }}

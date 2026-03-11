@@ -1,5 +1,5 @@
 replicaCount: 1
-
+networkPool: qa
 image:
   repository: nginx
   tag: "latest"
