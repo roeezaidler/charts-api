@@ -128,7 +128,7 @@ class RancherService:
             return None
         cn = group_principal[len(prefix):].split(",")[0]  # e.g. kubernetes-qa-androidiphone-group
         parts = cn.split("-")
-        if len(parts) >= 2 and parts[0] == "kubernetes":
+        if len(parts) >= 2 and parts[0].lower() == "kubernetes":
             return f"p-{parts[1]}"
         return None
 
