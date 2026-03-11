@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -50,20 +51,30 @@ class KubernetesService:
         await asyncio.to_thread(self._ensure_namespace, namespace, project_id)
 
     def _get_service_urls(self, service_name: str, namespace: str) -> tuple[str, str | None]:
-        """Query K8s API for a Service and return (internal_url, external_url)."""
+        """Query K8s API for a Service and return (internal_url, external_url).
+
+        For LoadBalancer services, retries a few times waiting for the external IP.
+        """
         internal_url = f"http://{service_name}.{namespace}.svc.cluster.local"
         external_url = None
 
         try:
-            svc = self.core_v1.read_namespaced_service(name=service_name, namespace=namespace)
+            for attempt in range(6):  # up to ~15s waiting for LB IP
+                svc = self.core_v1.read_namespaced_service(name=service_name, namespace=namespace)
 
-            if svc.spec.type == "LoadBalancer" and svc.status.load_balancer.ingress:
-                ingress = svc.status.load_balancer.ingress[0]
-                host = ingress.ip or ingress.hostname
-                port = svc.spec.ports[0].port
-                external_url = f"http://{host}:{port}"
+                if svc.spec.type == "LoadBalancer" and svc.status.load_balancer.ingress:
+                    ingress = svc.status.load_balancer.ingress[0]
+                    host = ingress.ip or ingress.hostname
+                    port = svc.spec.ports[0].port
+                    external_url = f"http://{host}:{port}"
+                    break
+                elif svc.spec.type == "LoadBalancer" and attempt < 5:
+                    logger.debug("waiting_for_lb_ip", service=service_name, attempt=attempt)
+                    time.sleep(3)
+                else:
+                    break
 
-            elif svc.spec.type == "NodePort":
+            if svc.spec.type == "NodePort" and not external_url:
                 node_port = svc.spec.ports[0].node_port
                 nodes = self.core_v1.list_node()
                 for node in nodes.items:

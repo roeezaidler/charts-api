@@ -66,9 +66,8 @@ class DeploymentService:
         if not result.success:
             raise DeploymentError(deployment_id, result.error_message or "Unknown error")
 
-        # Discover service URLs
-        service_name = request.entity_name
-        internal_url, external_url = await self.k8s.get_service_urls(service_name, namespace)
+        # Discover service URLs (service name matches the Helm release name)
+        internal_url, external_url = await self.k8s.get_service_urls(release_name, namespace)
 
         logger.info(
             "deploy_success",
