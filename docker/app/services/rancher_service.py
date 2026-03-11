@@ -3,7 +3,7 @@ import ssl
 
 import httpx
 import structlog
-from ldap3 import Server, Connection, NTLM, SUBTREE
+from ldap3 import Server, Connection, SIMPLE, SUBTREE
 
 from app.config import Settings
 
@@ -37,9 +37,9 @@ class RancherService:
         server = Server(self.settings.ldap_server)
         conn = Connection(
             server,
-            user=f"nsogroup\\{self.settings.ldap_username}",
+            user=f"{self.settings.ldap_username}@nsogroup.com",
             password=self.settings.ldap_password,
-            authentication=NTLM,
+            authentication=SIMPLE,
             auto_bind=True,
         )
         return conn
