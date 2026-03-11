@@ -44,20 +44,24 @@ class RancherService:
         )
         return conn
 
-    def _get_user_groups_from_ldap(self, username: str) -> list[str]:
-        """Query AD for the user's group memberships, filtered to Kubernetes OU."""
+    def _get_user_info_from_ldap(self, username: str) -> tuple[str, list[str]]:
+        """Query AD for the user's DN and group memberships (filtered to Kubernetes OU).
+
+        Returns (user_dn, groups) where groups are formatted as Rancher AD group principals.
+        """
         conn = self._get_ldap_connection()
         try:
             # Find the user by sAMAccountName
             conn.search(
                 self.settings.ldap_base_dn,
                 f"(&(sAMAccountName={username})(objectClass=User))",
-                attributes=["memberOf"],
+                attributes=["memberOf", "distinguishedName"],
                 search_scope=SUBTREE,
             )
             if not conn.entries:
                 raise ValueError(f"LDAP user not found: {username}")
 
+            user_dn = str(conn.entries[0].distinguishedName)
             member_of = conn.entries[0].memberOf.values if conn.entries[0].memberOf else []
 
             # Filter to Kubernetes OU groups and format as Rancher AD group principals
@@ -66,36 +70,35 @@ class RancherService:
                 if KUBERNETES_OU_MARKER in group_dn:
                     groups.append(f"activedirectory_group://{group_dn}")
 
-            logger.info("ldap_groups_resolved", username=username, groups=groups)
-            return groups
+            logger.info("ldap_user_resolved", username=username, user_dn=user_dn, groups=groups)
+            return user_dn, groups
         finally:
             conn.unbind()
 
-    async def get_user_id(self, username: str) -> str:
-        """Resolve a Rancher username to its internal user ID (e.g. u-xxxxx).
+    async def get_user_id(self, username: str, user_dn: str) -> str:
+        """Resolve a Rancher user ID using the LDAP DN.
 
-        Searches by username first, then falls back to searching by AD principal ID.
+        Extracts the CN from the DN and searches Rancher by display name.
+        Falls back to username field for local users.
         """
-        # Try by username field first (works for local users)
+        # Try by username field first (works for local users like "permy")
         resp = await self._client.get("/v3/users", params={"username": username})
         resp.raise_for_status()
         data = resp.json().get("data", [])
         if data:
             return data[0]["id"]
 
-        # For AD users, search all users and match by principalIds containing the username
-        resp = await self._client.get("/v3/users")
+        # For AD users, extract CN from DN and search by name (display name)
+        # DN looks like: CN=Roei Zaidler,OU=MEP Acquisition,...
+        cn = user_dn.split(",")[0].removeprefix("CN=")
+        resp = await self._client.get("/v3/users", params={"name": cn})
         resp.raise_for_status()
-        for user in resp.json().get("data", []):
-            principal_ids = user.get("principalIds", [])
-            for pid in principal_ids:
-                # AD principals look like: activedirectory_user://CN=Roei Zaidler,...
-                # or activedirectory_user://roeiz  — match sAMAccountName in the principal
-                if f"activedirectory_user://" in pid and username.lower() in pid.lower():
-                    logger.info("rancher_user_found_by_principal", username=username, user_id=user["id"], principal=pid)
-                    return user["id"]
+        data = resp.json().get("data", [])
+        if data:
+            logger.info("rancher_user_found_by_cn", username=username, user_id=data[0]["id"], cn=cn)
+            return data[0]["id"]
 
-        raise ValueError(f"Rancher user not found: {username}")
+        raise ValueError(f"Rancher user not found: {username} (CN: {cn})")
 
     async def get_cluster_groups(self) -> set[str]:
         """Get all Kubernetes OU AD groups that have project bindings on this cluster."""
@@ -114,18 +117,18 @@ class RancherService:
     async def resolve_user(self, username: str) -> tuple[str, list[str]]:
         """Resolve username to (rancher_user_id, ad_groups) for impersonation.
 
-        1. Get Rancher user ID from Rancher API
-        2. Get user's AD groups from LDAP (filtered to Kubernetes OU)
-        3. Intersect with groups that have project bindings on this cluster
+        1. Get user's DN and AD groups from LDAP
+        2. Get Rancher user ID by matching DN in principalIds
+        3. Intersect AD groups with groups that have project bindings on this cluster
         4. Return only the groups the user actually belongs to AND that have permissions
         """
-        # Run Rancher API calls and LDAP query in parallel
-        user_id_task = self.get_user_id(username)
-        cluster_groups_task = self.get_cluster_groups()
-        ldap_groups_task = asyncio.to_thread(self._get_user_groups_from_ldap, username)
+        # Get user DN and groups from LDAP first (needed for Rancher lookup)
+        user_dn, user_groups = await asyncio.to_thread(self._get_user_info_from_ldap, username)
 
-        user_id, cluster_groups, user_groups = await asyncio.gather(
-            user_id_task, cluster_groups_task, ldap_groups_task
+        # Now run Rancher lookups in parallel
+        user_id, cluster_groups = await asyncio.gather(
+            self.get_user_id(username, user_dn),
+            self.get_cluster_groups(),
         )
 
         # Intersect: only groups the user is in AND that have cluster/project bindings
@@ -135,6 +138,7 @@ class RancherService:
             "resolved_user",
             username=username,
             user_id=user_id,
+            user_dn=user_dn,
             user_ad_groups=len(user_groups),
             cluster_groups=len(cluster_groups),
             effective_groups=effective_groups,
