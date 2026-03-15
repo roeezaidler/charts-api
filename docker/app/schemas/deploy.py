@@ -22,6 +22,18 @@ class DeployRequest(BaseModel):
     )
 
 
+class DeleteRequest(BaseModel):
+    entity_name: str = Field(..., min_length=1, max_length=253, description="Name of the deployed entity")
+    entity_type: EntityType
+    owner_username: str = Field(..., min_length=1, max_length=63, description="Owner username used during deploy")
+    target_environment: TargetEnvironment
+
+
+class DeleteResponse(BaseModel):
+    status: str
+    message: str
+
+
 class DeployResponse(BaseModel):
     status: str
     deployment_id: str

@@ -24,12 +24,15 @@ class DeploymentService:
 
     async def create_deployment(self, request: DeployRequest) -> DeployResponse:
         deployment_id = str(uuid.uuid4())
-        namespace = build_namespace(request.entity_type.value, request.owner_username, request.target_environment.value)
-        release_name = build_release_name(request.entity_name, request.target_environment.value)
 
         # Resolve username to Rancher user ID + AD groups + project ID
         user_id, groups, project_id = await self.rancher.resolve_user(request.owner_username)
         logger.info("resolved_impersonation", username=request.owner_username, user_id=user_id, groups=groups, project_id=project_id)
+
+        # Extract group name from project_id (e.g. "p-qa" -> "qa")
+        group_name = project_id.split("-", 1)[1] if project_id else "default"
+        namespace = build_namespace(group_name, request.entity_type.value, request.entity_name, request.target_environment.value)
+        release_name = build_release_name(request.entity_name, request.target_environment.value)
 
         # Build values YAML from override (or empty)
         values_yaml = yaml.dump(request.values_override or {}, default_flow_style=False)
@@ -106,13 +109,23 @@ class DeploymentService:
     async def list_releases(self, namespace: str | None = None) -> list[dict]:
         return await self.helm.list_releases(namespace)
 
-    async def delete_release(self, release_name: str, namespace: str, owner_username: str | None = None) -> None:
-        impersonate_user = None
-        impersonate_groups = None
-        if owner_username:
-            impersonate_user, impersonate_groups, _ = await self.rancher.resolve_user(owner_username)
+    async def delete_deployment(
+        self,
+        entity_name: str,
+        entity_type: str,
+        owner_username: str,
+        target_environment: str,
+    ) -> None:
+        """Delete a deployment by resolving the user, namespace, and release name."""
+        user_id, groups, project_id = await self.rancher.resolve_user(owner_username)
 
-        result = await self.helm.delete(release_name, namespace, impersonate_user, impersonate_groups)
+        group_name = project_id.split("-", 1)[1] if project_id else "default"
+        namespace = build_namespace(group_name, entity_type, entity_name, target_environment)
+        release_name = build_release_name(entity_name, target_environment)
+
+        logger.info("deleting_deployment", release=release_name, namespace=namespace, user_id=user_id)
+
+        result = await self.helm.delete(release_name, namespace, user_id, groups or None)
         if not result.success:
             raise DeploymentError(release_name, result.error_message or "Failed to delete")
         logger.info("release_deleted", release=release_name, namespace=namespace)

@@ -1,10 +1,10 @@
-def build_namespace(entity_type: str, owner_username: str, environment: str) -> str:
-    """Build a deterministic namespace: {entity_type}-{owner}-{env}.
+def build_namespace(group: str, entity_type: str, entity_name: str, environment: str) -> str:
+    """Build a deterministic namespace: {group}-{type}-{entity_name}-{env}.
 
-    Multiple deployments by the same user/type/env share a namespace.
+    Example: qa-agent-my-test-app-dev
     """
     entity_type_normalized = entity_type.replace("_", "-")
-    ns = f"{entity_type_normalized}-{owner_username}-{environment}"
+    ns = f"{group}-{entity_type_normalized}-{entity_name}-{environment}"
     if len(ns) > 63:
         ns = ns[:63].rstrip("-")
     return ns
