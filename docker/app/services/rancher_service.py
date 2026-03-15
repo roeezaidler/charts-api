@@ -199,5 +199,15 @@ class RancherService:
         resp.raise_for_status()
         logger.info("namespace_created", namespace=namespace, project_id=project_id)
 
+    async def delete_namespace(self, namespace: str) -> None:
+        """Delete namespace via Rancher K8s API proxy (as admin)."""
+        k8s_base = f"/k8s/clusters/{self.cluster_id}"
+        resp = await self._client.delete(f"{k8s_base}/api/v1/namespaces/{namespace}")
+        if resp.status_code == 404:
+            logger.info("namespace_not_found", namespace=namespace)
+            return
+        resp.raise_for_status()
+        logger.info("namespace_deleted", namespace=namespace)
+
     async def close(self):
         await self._client.aclose()

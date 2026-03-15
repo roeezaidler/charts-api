@@ -129,3 +129,7 @@ class DeploymentService:
         if not result.success:
             raise DeploymentError(release_name, result.error_message or "Failed to delete")
         logger.info("release_deleted", release=release_name, namespace=namespace)
+
+        # Delete the namespace after the release is uninstalled
+        await self.rancher.delete_namespace(namespace)
+
