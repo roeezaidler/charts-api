@@ -172,6 +172,49 @@ class RancherService:
         )
         return user_id, effective_groups, project_id
 
+    @staticmethod
+    def extract_group_name(group_principal: str) -> str | None:
+        """Extract the group name (e.g. 'qa', 'android') from an AD group principal."""
+        prefix = "activedirectory_group://CN="
+        if not group_principal.startswith(prefix):
+            return None
+        cn = group_principal[len(prefix):].split(",")[0]
+        parts = cn.split("-")
+        if len(parts) >= 2 and parts[0].lower() == "kubernetes":
+            return parts[1]
+        return None
+
+    async def get_user_project(self, username: str) -> dict:
+        """Resolve a username to their project/group info."""
+        user_dn, user_groups = await asyncio.to_thread(self._get_user_info_from_ldap, username)
+        cluster_groups = await self.get_cluster_groups()
+        effective_groups = sorted(set(user_groups) & cluster_groups)
+
+        project_id = None
+        group_name = None
+        for group in effective_groups:
+            project_id = self.extract_project_id(group)
+            group_name = self.extract_group_name(group)
+            if project_id:
+                break
+
+        return {
+            "username": username,
+            "project_id": project_id,
+            "group": group_name,
+            "effective_groups": effective_groups,
+        }
+
+    async def list_managed_namespaces(self) -> list[str]:
+        """List all namespaces with the get-devops-tls-cert label (created by us)."""
+        k8s_base = f"/k8s/clusters/{self.cluster_id}"
+        resp = await self._client.get(
+            f"{k8s_base}/api/v1/namespaces",
+            params={"labelSelector": "get-devops-tls-cert=true"},
+        )
+        resp.raise_for_status()
+        return [ns["metadata"]["name"] for ns in resp.json().get("items", [])]
+
     async def ensure_namespace(self, namespace: str, project_id: str | None = None) -> None:
         """Create namespace via Rancher K8s API proxy (as admin) with project annotation."""
         k8s_base = f"/k8s/clusters/{self.cluster_id}"
@@ -188,6 +231,9 @@ class RancherService:
             "kind": "Namespace",
             "metadata": {
                 "name": namespace,
+                "labels": {
+                    "get-devops-tls-cert": "true",
+                },
                 "annotations": {},
             },
         }

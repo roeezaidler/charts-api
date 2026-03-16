@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import structlog
@@ -107,7 +108,18 @@ class DeploymentService:
         )
 
     async def list_releases(self, namespace: str | None = None) -> list[dict]:
-        return await self.helm.list_releases(namespace)
+        if namespace:
+            return await self.helm.list_releases(namespace)
+
+        # List across all our managed namespaces
+        namespaces = await self.rancher.list_managed_namespaces()
+        results = await asyncio.gather(
+            *[self.helm.list_releases(ns) for ns in namespaces]
+        )
+        releases = []
+        for r in results:
+            releases.extend(r)
+        return releases
 
     async def delete_deployment(
         self,
