@@ -1,6 +1,15 @@
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import EntityType, TargetEnvironment
+
+
+def normalize_entity_name(name: str) -> str:
+    """Lowercase, replace spaces/underscores with dashes, strip leading/trailing dashes."""
+    name = name.lower().replace(" ", "-").replace("_", "-")
+    name = re.sub(r"-+", "-", name)  # collapse multiple dashes
+    return name.strip("-")
 
 
 class DeployRequest(BaseModel):
@@ -8,9 +17,13 @@ class DeployRequest(BaseModel):
         ...,
         min_length=1,
         max_length=253,
-        pattern=r"^[a-z0-9][a-z0-9\-]*[a-z0-9]$",
         description="DNS-compatible name for the entity",
     )
+
+    @field_validator("entity_name")
+    @classmethod
+    def clean_entity_name(cls, v: str) -> str:
+        return normalize_entity_name(v)
     entity_type: EntityType
     chart_name: str = Field(..., min_length=1, description="Helm chart name in Artifactory")
     chart_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+.*$")
@@ -24,6 +37,11 @@ class DeployRequest(BaseModel):
 
 class DeleteRequest(BaseModel):
     entity_name: str = Field(..., min_length=1, max_length=253, description="Name of the deployed entity")
+
+    @field_validator("entity_name")
+    @classmethod
+    def clean_entity_name(cls, v: str) -> str:
+        return normalize_entity_name(v)
     entity_type: EntityType
     owner_username: str = Field(..., min_length=1, max_length=63, description="Owner username used during deploy")
     target_environment: TargetEnvironment
