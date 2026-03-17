@@ -18,6 +18,7 @@ class KubernetesService:
         else:
             config.load_kube_config(config_file=settings.k8s_kubeconfig or None)
         self.core_v1 = client.CoreV1Api()
+        self.networking_v1 = client.NetworkingV1Api()
 
     def _ensure_namespace(self, namespace: str, project_id: str | None = None) -> None:
         """Create namespace if it doesn't exist, with Rancher project label."""
@@ -51,49 +52,43 @@ class KubernetesService:
         await asyncio.to_thread(self._ensure_namespace, namespace, project_id)
 
     def _get_service_urls(self, namespace: str) -> tuple[str, str | None]:
-        """Find services in the namespace and return (internal_url, external_url).
+        """Find the internal service URL and the ingress URL for a deployment.
 
-        Searches all services in the namespace rather than guessing the service name.
-        For LoadBalancer services, retries a few times waiting for the external IP.
+        Returns (internal_url, ingress_url).
         """
         internal_url = None
-        external_url = None
+        ingress_url = None
 
         try:
-            for attempt in range(6):  # up to ~15s waiting for LB IP
-                services = self.core_v1.list_namespaced_service(namespace=namespace)
-                for svc in services.items:
-                    svc_name = svc.metadata.name
-                    internal_url = f"http://{svc_name}.{namespace}.svc.cluster.local"
+            # Find internal service URL
+            services = self.core_v1.list_namespaced_service(namespace=namespace)
+            for svc in services.items:
+                svc_name = svc.metadata.name
+                port = svc.spec.ports[0].port if svc.spec.ports else 80
+                internal_url = f"http://{svc_name}.{namespace}.svc.cluster.local:{port}"
+                break
 
-                    if svc.spec.type == "LoadBalancer" and svc.status.load_balancer.ingress:
-                        ingress = svc.status.load_balancer.ingress[0]
-                        host = ingress.ip or ingress.hostname
-                        port = svc.spec.ports[0].port
-                        external_url = f"http://{host}:{port}"
-                        return internal_url, external_url
-
-                    if svc.spec.type == "NodePort":
-                        node_port = svc.spec.ports[0].node_port
-                        nodes = self.core_v1.list_node()
-                        for node in nodes.items:
-                            for addr in node.status.addresses:
-                                if addr.type == "ExternalIP":
-                                    external_url = f"http://{addr.address}:{node_port}"
-                                    return internal_url, external_url
-
-                # If we found a LB service but no IP yet, wait and retry
-                lb_pending = any(s.spec.type == "LoadBalancer" for s in services.items)
-                if lb_pending and attempt < 5:
-                    logger.debug("waiting_for_lb_ip", namespace=namespace, attempt=attempt)
-                    time.sleep(3)
-                else:
+            # Find ingress URL
+            ingresses = self.networking_v1.list_namespaced_ingress(namespace=namespace)
+            for ing in ingresses.items:
+                if ing.spec.rules:
+                    rule = ing.spec.rules[0]
+                    host = rule.host
+                    if rule.http and rule.http.paths:
+                        # Strip regex suffix from path, e.g. /test2-dev(/|$)(.*) -> /test2-dev
+                        raw_path = rule.http.paths[0].path or "/"
+                        clean_path = raw_path.split("(")[0].rstrip("/")
+                        protocol = "https" if ing.spec.tls else "http"
+                        ingress_url = f"{protocol}://{host}{clean_path}"
+                    else:
+                        protocol = "https" if ing.spec.tls else "http"
+                        ingress_url = f"{protocol}://{host}"
                     break
 
         except ApiException as e:
             logger.warning("service_query_failed", namespace=namespace, error=str(e))
 
-        return internal_url or f"http://{namespace}.svc.cluster.local", external_url
+        return internal_url or f"http://{namespace}.svc.cluster.local", ingress_url
 
     async def get_service_urls(self, namespace: str) -> tuple[str, str | None]:
         """Async wrapper around the synchronous K8s client."""
