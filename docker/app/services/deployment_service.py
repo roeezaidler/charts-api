@@ -35,8 +35,15 @@ class DeploymentService:
         namespace = build_namespace(group_name, request.entity_type.value, request.entity_name, request.target_environment.value)
         release_name = build_release_name(request.entity_name, request.target_environment.value)
 
+        # Force networkPool to the user's project group (always overrides user input)
+        values = request.values_override or {}
+        if request.chart_name == "mcp-server-core":
+            values.setdefault("service", {})["networkPool"] = group_name
+        else:
+            values.setdefault("mcp-server-core", {}).setdefault("service", {})["networkPool"] = group_name
+
         # Build values YAML from override (or empty)
-        values_yaml = yaml.dump(request.values_override or {}, default_flow_style=False)
+        values_yaml = yaml.dump(values, default_flow_style=False)
 
         chart_ref = f"{self.settings.artifactory_helm_repo_name}/{request.chart_name}"
 
