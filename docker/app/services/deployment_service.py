@@ -71,7 +71,7 @@ class DeploymentService:
             raise DeploymentError(deployment_id, result.error_message or "Unknown error")
 
         # Discover service URLs (service name matches the Helm release name)
-        internal_url, external_url = await self.k8s.get_service_urls(release_name, namespace)
+        internal_url, external_url = await self.k8s.get_service_urls(namespace)
 
         logger.info(
             "deploy_success",
@@ -95,7 +95,7 @@ class DeploymentService:
         if status is None:
             raise DeploymentError(release_name, f"Release {release_name} not found in namespace {namespace}")
 
-        internal_url, external_url = await self.k8s.get_service_urls(release_name, namespace)
+        internal_url, external_url = await self.k8s.get_service_urls(namespace)
 
         return DeploymentStatusResponse(
             release_name=release_name,
