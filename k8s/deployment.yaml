@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: charts-api
-  namespace: user-charts
   labels:
     app: charts-api
 spec:
@@ -18,7 +17,7 @@ spec:
       serviceAccountName: charts-api
       containers:
         - name: charts-api
-          image: docker.artifactory.nsogroup.com/infra/charts-api:0.2.0
+          image: docker.artifactory.nsogroup.com/infra/users-charts-api:0.24
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -98,11 +97,11 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 4Gi
       volumes:
         - name: internal-ca
           configMap:
