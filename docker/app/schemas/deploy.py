@@ -24,8 +24,9 @@ def expand_dot_keys(d: dict) -> dict:
 
 
 def normalize_entity_name(name: str) -> str:
-    """Lowercase, replace spaces/underscores with dashes, strip leading/trailing dashes."""
-    name = name.lower().replace(" ", "-").replace("_", "-")
+    """Lowercase, replace invalid chars with dashes, strip leading/trailing dashes."""
+    name = name.lower()
+    name = re.sub(r"[^a-z0-9-]", "-", name)  # replace anything not alphanumeric/dash
     name = re.sub(r"-+", "-", name)  # collapse multiple dashes
     return name.strip("-")
 
