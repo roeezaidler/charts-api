@@ -10,12 +10,12 @@ def build_namespace(group: str, entity_type: str, entity_name: str, environment:
     return ns
 
 
-def build_release_name(entity_name: str, environment: str) -> str:
-    """Build a deterministic release/application name: {entity_name}-{env}.
+def build_release_name(group: str, entity_name: str, environment: str) -> str:
+    """Build a deterministic release/application name: {group}-{entity_name}-{env}.
 
     Deterministic so that re-deploying the same entity upgrades in place.
     """
-    release = f"{entity_name}-{environment}"
+    release = f"{group}-{entity_name}-{environment}"
     if len(release) > 53:
         release = release[:53].rstrip("-")
     return release

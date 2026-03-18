@@ -33,7 +33,16 @@ class DeploymentService:
         # Extract group name from project_id (e.g. "p-qa" -> "qa")
         group_name = project_id.split("-", 1)[1] if project_id else "default"
         namespace = build_namespace(group_name, request.entity_type.value, request.entity_name, request.target_environment.value)
-        release_name = build_release_name(request.entity_name, request.target_environment.value)
+        release_name = build_release_name(group_name, request.entity_name, request.target_environment.value)
+
+        # For "deploy" type, check that the release doesn't already exist
+        if request.deployment_type.value == "deploy":
+            existing = await self.helm.get_status(release_name, namespace)
+            if existing is not None:
+                raise DeploymentError(
+                    deployment_id,
+                    f"Release '{release_name}' already exists in namespace '{namespace}'. Use deployment_type='upgrade' to update it.",
+                )
 
         # Force networkPool to the user's project group (always overrides user input)
         values = request.values_override or {}
@@ -140,7 +149,7 @@ class DeploymentService:
 
         group_name = project_id.split("-", 1)[1] if project_id else "default"
         namespace = build_namespace(group_name, entity_type, entity_name, target_environment)
-        release_name = build_release_name(entity_name, target_environment)
+        release_name = build_release_name(group_name, entity_name, target_environment)
 
         logger.info("deleting_deployment", release=release_name, namespace=namespace, user_id=user_id)
 

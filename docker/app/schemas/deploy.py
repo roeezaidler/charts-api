@@ -2,7 +2,7 @@ import re
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.common import EntityType, TargetEnvironment
+from app.schemas.common import DeploymentType, EntityType, TargetEnvironment
 
 
 def expand_dot_keys(d: dict) -> dict:
@@ -48,6 +48,7 @@ class DeployRequest(BaseModel):
     chart_version: str = Field(..., pattern=r"^\d+\.\d+\.\d+.*$")
     owner_username: str = Field(..., min_length=1, max_length=63, description="Rancher username to impersonate")
     target_environment: TargetEnvironment
+    deployment_type: DeploymentType = Field(default=DeploymentType.DEPLOY, description="'deploy' for new, 'upgrade' for existing")
     values_override: dict | None = Field(
         default=None,
         description="Optional Helm values to override chart defaults",

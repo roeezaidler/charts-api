@@ -10,8 +10,12 @@ class EntityType(str, Enum):
 
 class TargetEnvironment(str, Enum):
     DEV = "dev"
-    STAGING = "staging"
-    PROD = "prod"
+    RELEASE = "release"
+
+
+class DeploymentType(str, Enum):
+    DEPLOY = "deploy"
+    UPGRADE = "upgrade"
 
 
 class ErrorResponse(BaseModel):
