@@ -35,13 +35,12 @@ class DeploymentService:
         namespace = build_namespace(group_name, request.entity_type.value, request.entity_name, request.target_environment.value)
         release_name = build_release_name(group_name, request.entity_name, request.target_environment.value)
 
-        # For "deploy" type, check that the release doesn't already exist
+        # For "deploy" type, check that the namespace doesn't already exist
         if request.deployment_type.value == "deploy":
-            existing = await self.helm.get_status(release_name, namespace)
-            if existing is not None:
+            if await self.rancher.namespace_exists(namespace):
                 raise DeploymentError(
                     deployment_id,
-                    f"Release '{release_name}' already exists in namespace '{namespace}'. Use deployment_type='upgrade' to update it.",
+                    f"Deployment already exists (namespace '{namespace}'). Use deployment_type='upgrade' to update it.",
                 )
 
         # Force networkPool to the user's project group (always overrides user input)

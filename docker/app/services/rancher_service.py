@@ -215,6 +215,12 @@ class RancherService:
         resp.raise_for_status()
         return [ns["metadata"]["name"] for ns in resp.json().get("items", [])]
 
+    async def namespace_exists(self, namespace: str) -> bool:
+        """Check if a namespace exists via Rancher K8s API proxy."""
+        k8s_base = f"/k8s/clusters/{self.cluster_id}"
+        resp = await self._client.get(f"{k8s_base}/api/v1/namespaces/{namespace}")
+        return resp.status_code == 200
+
     async def ensure_namespace(self, namespace: str, project_id: str | None = None) -> None:
         """Create namespace via Rancher K8s API proxy (as admin) with project annotation."""
         k8s_base = f"/k8s/clusters/{self.cluster_id}"
