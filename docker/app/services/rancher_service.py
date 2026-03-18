@@ -206,11 +206,11 @@ class RancherService:
         }
 
     async def list_managed_namespaces(self) -> list[str]:
-        """List all namespaces with the get-devops-tls-cert label (created by us)."""
+        """List all namespaces with the sync-agents-dns-tls-cert label (created by us)."""
         k8s_base = f"/k8s/clusters/{self.cluster_id}"
         resp = await self._client.get(
             f"{k8s_base}/api/v1/namespaces",
-            params={"labelSelector": "get-devops-tls-cert=true"},
+            params={"labelSelector": "sync-agents-dns-tls-cert=true"},
         )
         resp.raise_for_status()
         return [ns["metadata"]["name"] for ns in resp.json().get("items", [])]
@@ -232,7 +232,7 @@ class RancherService:
             "metadata": {
                 "name": namespace,
                 "labels": {
-                    "get-devops-tls-cert": "true",
+                    "sync-agents-dns-tls-cert": "true",
                 },
                 "annotations": {},
             },
