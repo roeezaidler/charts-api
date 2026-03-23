@@ -47,10 +47,13 @@ class DeploymentService:
 
         # Force networkPool to the user's project group (always overrides user input)
         values = request.values_override or {}
-        if request.chart_name == "mcp-server-core":
+        subchart = "ai-agent-core" if request.entity_type.value == "agent" else "mcp-server-core"
+        if request.chart_name == subchart:
+            # Deploying the subchart directly
             values.setdefault("service", {})["networkPool"] = group_name
         else:
-            values.setdefault("mcp-server-core", {}).setdefault("service", {})["networkPool"] = group_name
+            # Subchart is embedded — prefix with subchart name
+            values.setdefault(subchart, {}).setdefault("service", {})["networkPool"] = group_name
 
         # Generate LiteLLM API key for agent deployments (before helm deploy so we can inject it)
         litellm_api_key = None
