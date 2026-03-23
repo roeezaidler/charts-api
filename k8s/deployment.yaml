@@ -78,6 +78,14 @@ spec:
                 secretKeyRef:
                   name: charts-api-secrets
                   key: ldap-password
+            - name: CHARTS_API_LITELLM_URL
+              value: "http://litellm-service.litellm.svc.cluster.local"
+            - name: CHARTS_API_LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: charts-api-secrets
+                  key: litellm-master-key
+                  optional: true
           volumeMounts:
             - name: internal-ca
               mountPath: /etc/ssl/certs/internal-ca.crt

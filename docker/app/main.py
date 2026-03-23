@@ -7,6 +7,7 @@ from app.config import Settings
 from app.backends.helm_backend import HelmBackend
 from app.services.deployment_service import DeploymentService
 from app.services.kubernetes_service import KubernetesService
+from app.services.litellm_service import LiteLLMService
 from app.services.rancher_service import RancherService
 from app.api.v1.router import api_router
 
@@ -20,8 +21,9 @@ async def lifespan(app: FastAPI):
     helm = HelmBackend(settings)
     k8s_service = KubernetesService(settings)
     rancher = RancherService(settings)
+    litellm = LiteLLMService(settings.litellm_url, settings.litellm_master_key, settings.litellm_key_duration_days)
 
-    app.state.deployment_service = DeploymentService(helm, k8s_service, rancher, settings)
+    app.state.deployment_service = DeploymentService(helm, k8s_service, rancher, litellm, settings)
     logger.info("app_started")
 
     yield

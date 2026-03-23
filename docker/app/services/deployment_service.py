@@ -11,16 +11,18 @@ from app.core.namespace import build_namespace, build_release_name
 from app.schemas.deploy import DeployRequest, DeployResponse
 from app.schemas.status import DeploymentStatusResponse
 from app.services.kubernetes_service import KubernetesService
+from app.services.litellm_service import LiteLLMService
 from app.services.rancher_service import RancherService
 
 logger = structlog.get_logger()
 
 
 class DeploymentService:
-    def __init__(self, helm: HelmBackend, k8s_service: KubernetesService, rancher: RancherService, settings: Settings):
+    def __init__(self, helm: HelmBackend, k8s_service: KubernetesService, rancher: RancherService, litellm: LiteLLMService, settings: Settings):
         self.helm = helm
         self.k8s = k8s_service
         self.rancher = rancher
+        self.litellm = litellm
         self.settings = settings
 
     async def create_deployment(self, request: DeployRequest) -> DeployResponse:
@@ -88,6 +90,16 @@ class DeploymentService:
         # Discover service URLs (service name matches the Helm release name)
         internal_url, external_url = await self.k8s.get_service_urls(namespace)
 
+        # Generate LiteLLM API key for agent deployments
+        litellm_api_key = None
+        if request.entity_type.value == "agent" and self.litellm.master_key:
+            try:
+                key_data = await self.litellm.generate_key(group_name, request.entity_name)
+                litellm_api_key = key_data["key"]
+                logger.info("litellm_key_created", key_alias=key_data["key_alias"], deployment_id=deployment_id)
+            except Exception as e:
+                logger.warning("litellm_key_failed", error=str(e), deployment_id=deployment_id)
+
         logger.info(
             "deploy_success",
             deployment_id=deployment_id,
@@ -102,6 +114,7 @@ class DeploymentService:
             namespace=namespace,
             connection_url=internal_url,
             public_connection_url=external_url,
+            litellm_api_key=litellm_api_key,
             message="Deployment successful",
         )
 

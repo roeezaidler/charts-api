@@ -85,4 +85,5 @@ class DeployResponse(BaseModel):
     namespace: str
     connection_url: str
     public_connection_url: str | None = None
+    litellm_api_key: str | None = None
     message: str

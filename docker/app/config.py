@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     ldap_password: str = ""
     ldap_base_dn: str = "OU=NSOGROUP,DC=NSOGROUP,DC=COM"
 
+    # LiteLLM - for generating API keys for agent deployments
+    litellm_url: str = "http://litellm-service.litellm.svc.cluster.local"
+    litellm_master_key: str = ""
+    litellm_key_duration_days: int = 30
+
     # Kubernetes (for service URL discovery)
     k8s_in_cluster: bool = True
     k8s_kubeconfig: str = ""
