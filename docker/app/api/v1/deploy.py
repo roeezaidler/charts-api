@@ -30,12 +30,13 @@ async def deploy(
     try:
         return await service.create_deployment(request)
     except DeploymentError as e:
+        logger.error("deploy_error", deployment_id=e.deployment_id, error=e.message)
         raise HTTPException(
             status_code=500,
             detail={"status": "error", "deployment_id": e.deployment_id, "message": e.message},
         )
     except Exception as e:
-        logger.exception("deploy_unhandled_error")
+        logger.exception("deploy_unhandled_error", error=str(e))
         raise HTTPException(
             status_code=500,
             detail={"status": "error", "message": str(e)},
@@ -67,12 +68,13 @@ async def delete(
         )
         return DeleteResponse(status="success", message="Deployment deleted")
     except DeploymentError as e:
+        logger.error("delete_error", deployment_id=e.deployment_id, error=e.message)
         raise HTTPException(
             status_code=500,
             detail={"status": "error", "deployment_id": e.deployment_id, "message": e.message},
         )
     except Exception as e:
-        logger.exception("delete_unhandled_error")
+        logger.exception("delete_unhandled_error", error=str(e))
         raise HTTPException(
             status_code=500,
             detail={"status": "error", "message": str(e)},
