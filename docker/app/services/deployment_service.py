@@ -24,8 +24,13 @@ class DeploymentService:
         self.rancher = rancher
         self.litellm = litellm
         self.settings = settings
+        self._deploy_lock = asyncio.Lock()
 
     async def create_deployment(self, request: DeployRequest) -> DeployResponse:
+        async with self._deploy_lock:
+            return await self._create_deployment(request)
+
+    async def _create_deployment(self, request: DeployRequest) -> DeployResponse:
         deployment_id = str(uuid.uuid4())
 
         # Resolve username to Rancher user ID + AD groups + project ID
@@ -155,6 +160,16 @@ class DeploymentService:
         return releases
 
     async def delete_deployment(
+        self,
+        entity_name: str,
+        entity_type: str,
+        owner_username: str,
+        target_environment: str,
+    ) -> None:
+        async with self._deploy_lock:
+            return await self._delete_deployment(entity_name, entity_type, owner_username, target_environment)
+
+    async def _delete_deployment(
         self,
         entity_name: str,
         entity_type: str,
