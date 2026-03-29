@@ -1,3 +1,5 @@
+import uuid
+
 import httpx
 import structlog
 
@@ -12,7 +14,8 @@ class LiteLLMService:
 
     async def generate_key(self, project: str, entity_name: str) -> dict:
         """Generate a LiteLLM API key for an agent deployment."""
-        key_alias = f"agent-{project}-{entity_name}"
+        suffix = uuid.uuid4().hex[:6]
+        key_alias = f"agent-{project}-{entity_name}-{suffix}"
 
         payload = {
             "key_alias": key_alias,
