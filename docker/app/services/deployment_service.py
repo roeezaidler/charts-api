@@ -170,6 +170,14 @@ class DeploymentService:
 
         logger.info("deleting_deployment", release=release_name, namespace=namespace, user_id=user_id)
 
+        # Delete LiteLLM keys for agent deployments
+        if entity_type == "agent" and self.litellm.master_key:
+            try:
+                deleted = await self.litellm.delete_keys(group_name, entity_name)
+                logger.info("litellm_keys_deleted", count=deleted, entity=entity_name)
+            except Exception as e:
+                logger.warning("litellm_key_delete_failed", error=str(e))
+
         result = await self.helm.delete(release_name, namespace, user_id, groups or None)
         if not result.success:
             raise DeploymentError(release_name, result.error_message or "Failed to delete")

@@ -40,3 +40,36 @@ class LiteLLMService:
         )
 
         return {"key": data["key"], "key_alias": key_alias}
+
+    async def delete_keys(self, project: str, entity_name: str) -> int:
+        """Delete all LiteLLM API keys matching agent-{project}-{entity_name}-*."""
+        prefix = f"agent-{project}-{entity_name}-"
+        headers = {"Authorization": f"Bearer {self.master_key}"}
+        deleted = 0
+
+        async with httpx.AsyncClient(verify=False) as client:
+            # List all keys
+            resp = await client.get(
+                f"{self.litellm_url}/key/list",
+                headers=headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            keys = resp.json().get("keys", [])
+
+            for key_info in keys:
+                alias = key_info.get("key_alias") or ""
+                if alias.startswith(prefix):
+                    token = key_info.get("token")
+                    if token:
+                        del_resp = await client.post(
+                            f"{self.litellm_url}/key/delete",
+                            json={"keys": [token]},
+                            headers=headers,
+                            timeout=10,
+                        )
+                        if del_resp.status_code == 200:
+                            deleted += 1
+                            logger.info("litellm_key_deleted", key_alias=alias)
+
+        return deleted
