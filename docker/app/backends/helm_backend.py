@@ -97,7 +97,16 @@ class HelmBackend:
                 "--wait",
             ])
 
-            returncode, stdout, stderr = await self._run_helm(args)
+            try:
+                returncode, stdout, stderr = await self._run_helm(args)
+            except TimeoutError:
+                logger.error("helm_deploy_timeout", release=release_name, namespace=namespace, timeout=self.timeout)
+                return DeploymentResult(
+                    success=False,
+                    release_name=release_name,
+                    namespace=namespace,
+                    error_message=f"Deployment timed out after {self.timeout}s waiting for pods to become ready. Check pod events for details.",
+                )
 
             if returncode != 0:
                 logger.error("helm_deploy_failed", release=release_name, error=stderr)
