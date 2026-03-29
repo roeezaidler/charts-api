@@ -18,6 +18,7 @@ class HelmBackend:
         self.settings = settings
         self.helm_bin = settings.helm_binary
         self.timeout = settings.helm_timeout
+        self._repo_lock = asyncio.Lock()
 
     def _base_args(self, impersonate_user: str | None = None, impersonate_groups: list[str] | None = None) -> list[str]:
         """Build common Helm args for Rancher API proxy + impersonation."""
@@ -48,27 +49,28 @@ class HelmBackend:
         return process.returncode, stdout.decode(), stderr.decode()
 
     async def ensure_repo(self) -> None:
-        """Add the Artifactory Helm repo if not already added."""
-        args = [
-            "repo", "add",
-            self.settings.artifactory_helm_repo_name,
-            self.settings.artifactory_helm_repo_url,
-            "--force-update",
-        ]
-        if self.settings.artifactory_username:
-            args.extend(["--username", self.settings.artifactory_username])
-        if self.settings.artifactory_password:
-            args.extend(["--password", self.settings.artifactory_password])
-        if self.settings.ca_bundle_path:
-            args.extend(["--ca-file", self.settings.ca_bundle_path])
+        """Add the Artifactory Helm repo if not already added. Serialized to avoid concurrent conflicts."""
+        async with self._repo_lock:
+            args = [
+                "repo", "add",
+                self.settings.artifactory_helm_repo_name,
+                self.settings.artifactory_helm_repo_url,
+                "--force-update",
+            ]
+            if self.settings.artifactory_username:
+                args.extend(["--username", self.settings.artifactory_username])
+            if self.settings.artifactory_password:
+                args.extend(["--password", self.settings.artifactory_password])
+            if self.settings.ca_bundle_path:
+                args.extend(["--ca-file", self.settings.ca_bundle_path])
 
-        returncode, stdout, stderr = await self._run_helm(args)
-        if returncode != 0:
-            logger.error("helm_repo_add_failed", error=stderr)
-            raise RuntimeError(f"Failed to add Helm repo: {stderr}")
+            returncode, stdout, stderr = await self._run_helm(args)
+            if returncode != 0:
+                logger.error("helm_repo_add_failed", error=stderr)
+                raise RuntimeError(f"Failed to add Helm repo: {stderr}")
 
-        await self._run_helm(["repo", "update"])
-        logger.info("helm_repo_configured", repo=self.settings.artifactory_helm_repo_name)
+            await self._run_helm(["repo", "update"])
+            logger.info("helm_repo_configured", repo=self.settings.artifactory_helm_repo_name)
 
     async def deploy(
         self,
