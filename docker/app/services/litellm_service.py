@@ -16,7 +16,6 @@ class LiteLLMService:
 
         payload = {
             "key_alias": key_alias,
-            "duration": f"{self.key_duration_days}d",
         }
 
         headers = {"Authorization": f"Bearer {self.master_key}"}

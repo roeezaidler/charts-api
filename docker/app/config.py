@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Helm
     helm_binary: str = "helm"
-    helm_timeout: int = 300
+    helm_timeout: int = 600
 
     # LDAP - for resolving user AD group memberships
     ldap_server: str = ""  # e.g. ldap://dc01.nsogroup.com
