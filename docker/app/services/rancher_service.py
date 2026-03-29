@@ -251,6 +251,26 @@ class RancherService:
         resp.raise_for_status()
         logger.info("namespace_created", namespace=namespace, project_id=project_id)
 
+    async def annotate_namespace(self, namespace: str, annotations: dict[str, str]) -> None:
+        """Patch annotations on a namespace."""
+        k8s_base = f"/k8s/clusters/{self.cluster_id}"
+        patch = {"metadata": {"annotations": annotations}}
+        resp = await self._client.patch(
+            f"{k8s_base}/api/v1/namespaces/{namespace}",
+            json=patch,
+            headers={"Content-Type": "application/strategic-merge-patch+json"},
+        )
+        resp.raise_for_status()
+
+    async def get_namespace_annotation(self, namespace: str, key: str) -> str | None:
+        """Read a single annotation from a namespace."""
+        k8s_base = f"/k8s/clusters/{self.cluster_id}"
+        resp = await self._client.get(f"{k8s_base}/api/v1/namespaces/{namespace}")
+        if resp.status_code != 200:
+            return None
+        annotations = resp.json().get("metadata", {}).get("annotations", {})
+        return annotations.get(key)
+
     async def delete_namespace(self, namespace: str) -> None:
         """Delete namespace via Rancher K8s API proxy (as admin)."""
         k8s_base = f"/k8s/clusters/{self.cluster_id}"

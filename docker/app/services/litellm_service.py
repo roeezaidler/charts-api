@@ -39,37 +39,21 @@ class LiteLLMService:
             key_name=data.get("key_name"),
         )
 
-        return {"key": data["key"], "key_alias": key_alias}
+        return {"key": data["key"], "key_alias": key_alias, "token": data.get("token")}
 
-    async def delete_keys(self, project: str, entity_name: str) -> int:
-        """Delete all LiteLLM API keys matching agent-{project}-{entity_name}-*."""
-        prefix = f"agent-{project}-{entity_name}-"
+    async def delete_key(self, token: str) -> bool:
+        """Delete a LiteLLM API key by its token."""
         headers = {"Authorization": f"Bearer {self.master_key}"}
-        deleted = 0
 
         async with httpx.AsyncClient(verify=False) as client:
-            # List all keys
-            resp = await client.get(
-                f"{self.litellm_url}/key/list",
+            resp = await client.post(
+                f"{self.litellm_url}/key/delete",
+                json={"keys": [token]},
                 headers=headers,
                 timeout=10,
             )
-            resp.raise_for_status()
-            keys = resp.json().get("keys", [])
-
-            for key_info in keys:
-                alias = key_info.get("key_alias") or ""
-                if alias.startswith(prefix):
-                    token = key_info.get("token")
-                    if token:
-                        del_resp = await client.post(
-                            f"{self.litellm_url}/key/delete",
-                            json={"keys": [token]},
-                            headers=headers,
-                            timeout=10,
-                        )
-                        if del_resp.status_code == 200:
-                            deleted += 1
-                            logger.info("litellm_key_deleted", key_alias=alias)
-
-        return deleted
+            if resp.status_code == 200:
+                logger.info("litellm_key_deleted", token=token[:10] + "...")
+                return True
+            logger.warning("litellm_key_delete_failed", token=token[:10] + "...", status=resp.status_code)
+            return False

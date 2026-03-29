@@ -57,10 +57,12 @@ class DeploymentService:
 
         # Generate LiteLLM API key for agent deployments (before helm deploy so we can inject it)
         litellm_api_key = None
+        litellm_token = None
         if request.entity_type.value == "agent" and self.litellm.master_key:
             try:
                 key_data = await self.litellm.generate_key(group_name, request.entity_name)
                 litellm_api_key = key_data["key"]
+                litellm_token = key_data.get("token")
                 logger.info("litellm_key_created", key_alias=key_data["key_alias"], deployment_id=deployment_id)
                 # Inject the key as a chart value
                 values.setdefault("ai-agent-core", {}).setdefault("env", {})["LITELLM_API_KEY"] = litellm_api_key
@@ -84,6 +86,13 @@ class DeploymentService:
 
         # Create namespace via Rancher API as admin (with project label)
         await self.rancher.ensure_namespace(namespace, project_id)
+
+        # Store LiteLLM token as namespace annotation for cleanup on delete
+        if litellm_token:
+            try:
+                await self.rancher.annotate_namespace(namespace, {"charts-api/litellm-token": litellm_token})
+            except Exception as e:
+                logger.warning("annotate_namespace_failed", error=str(e))
 
         # Ensure Artifactory Helm repo is configured
         await self.helm.ensure_repo()
@@ -170,11 +179,13 @@ class DeploymentService:
 
         logger.info("deleting_deployment", release=release_name, namespace=namespace, user_id=user_id)
 
-        # Delete LiteLLM keys for agent deployments
+        # Delete LiteLLM key stored in namespace annotation
         if entity_type == "agent" and self.litellm.master_key:
             try:
-                deleted = await self.litellm.delete_keys(group_name, entity_name)
-                logger.info("litellm_keys_deleted", count=deleted, entity=entity_name)
+                token = await self.rancher.get_namespace_annotation(namespace, "charts-api/litellm-token")
+                if token:
+                    await self.litellm.delete_key(token)
+                    logger.info("litellm_key_deleted", namespace=namespace)
             except Exception as e:
                 logger.warning("litellm_key_delete_failed", error=str(e))
 
