@@ -189,7 +189,7 @@ class DeploymentService:
             except Exception as e:
                 logger.warning("litellm_key_delete_failed", error=str(e))
 
-        result = await self.helm.delete(release_name, namespace, user_id, groups or None)
+        result = await self.helm.delete(release_name, namespace)
         if not result.success:
             raise DeploymentError(release_name, result.error_message or "Failed to delete")
         logger.info("release_deleted", release=release_name, namespace=namespace)
